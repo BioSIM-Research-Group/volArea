@@ -1,0 +1,290 @@
+
+namespace eval ::Vdw:: {
+  namespace import ::
+
+
+  set IDproce 0
+  array set id ""
+
+  if {$::tcl_platform(os) == "Darwin"} {
+    catch {exec sysctl -n hw.ncpu} proce
+  } elseif {$::tcl_platform(os) == "Linux"} {
+    catch {exec grep -c "model name" /proc/cpuinfo} proce
+  } elseif {[string first "Windows" $::tcl_platform(os)] != -1} {
+    catch {HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor } proce
+    set proce [llength $proce]
+  }
+  set proce [expr $proce*2]
+}
+
+
+proc Vdw::main { scale a_xmin a_ymin a_zmin a_xmax a_ymax a_zmax path frm frmtot areamin areamax boxmax} {
+
+  array unset id
+  array set id ""
+  array unset st
+  array set st ""
+  set fld "Routines/Lib"
+  set vdw_file [open "$path$fld/vdw.cor" r+]
+  set rad [read -nonewline $vdw_file]
+  set rad [split $rad " "]
+  close $vdw_file
+  set xl_file [open "$path$fld/xl.cor" r+]
+  set xl [read -nonewline $xl_file]
+  set xl [split $xl " "]
+  close $xl_file
+  set yl_file [open "$path$fld/yl.cor" r+]
+  set yl [read -nonewline $yl_file]
+  set yl [split $yl " "]
+  close $yl_file
+  set zl_file [open "$path$fld/zl.cor" r+]
+  set zl [read -nonewline $zl_file]
+  set zl [split $zl " "]
+  close $zl_file
+  set il_file [open "$path$fld/il.cor" r+]
+  set il [read -nonewline $il_file]
+  set il [split $il " "]
+  close $il_file
+  set j 0
+  set i 0
+  set max [expr round([expr double([llength $xl])/ $Vdw::proce])]
+  set do 0
+	array set st ""
+
+  while {$j < $Vdw::proce} {
+    set id($j) [thread::create]
+    tsv::set in 0 [lrange $xl [expr $max *$j] [expr $max * [expr $j +1]]]
+    tsv::set in 1 [lrange $yl [expr $max *$j] [expr $max * [expr $j +1]]]
+    tsv::set in 2 [lrange $zl [expr $max *$j] [expr $max * [expr $j +1]]]
+    tsv::set in 3 [lrange $rad [expr $max *$j] [expr $max * [expr $j +1]]]
+    tsv::set in 4 $scale
+    tsv::set in 5 $a_xmin
+    tsv::set in 6 $a_ymin
+    tsv::set in 7 $a_zmin
+    tsv::set in 8 $a_xmax
+    tsv::set in 9 $a_ymax
+    tsv::set in 10 $a_zmax
+    tsv::set in 11 $il
+    tsv::set in 12 $path
+    if {$j == 0} {
+	 set do 1
+    }
+    tsv::set in 13 $do
+    tsv::set in 14 $j
+    thread::send -async $id($j) {
+	 set xl [tsv::get in 0]
+	 set yl [tsv::get in 1]
+	 set zl [tsv::get in 2]
+	 set rad [tsv::get in 3]
+	 set scale [tsv::get in 4]
+	 set a_xmin [tsv::get in 5]
+	 set a_ymin [tsv::get in 6]
+	 set a_zmin [tsv::get in 7]
+	 set a_xmax [tsv::get in 8]
+	 set a_ymax [tsv::get in 9]
+	 set a_zmax [tsv::get in 10]
+	 set il [tsv::get in 11]
+	 set path [tsv::get in 12]
+	 set do [tsv::get in 13]
+	 set j [tsv::get in 14]
+	 lappend auto_path $path
+	 package require MolSpace 1.0
+	 namespace import MolSpace::vdwfun
+	 set fld "Routines/Lib/Vdw_func.tcl"
+	 set i 0
+	 set st ""
+	 while {[lindex $xl $i] != "" && [lindex $yl $i] !="" && [lindex $zl $i] != "" } {
+			if {$do == 1 && $i == 0} {
+				set do 2
+			} else {
+				set do 3
+			}
+			set x [lindex $xl $i]
+			set y [lindex $yl $i]
+			set z [lindex $zl $i]
+			if {[format %3.3f [lindex $rad $i] ] > [expr $scale/2.0] } {
+				set st [append st "[MolSpace::vdwfun [lindex $rad $i] $scale $x $y $z $a_xmin $a_ymin $a_zmin $a_xmax $a_ymax $a_zmax $do] "]
+			}
+			incr i
+	  }
+	 tsv::set out 0 $st
+    } Vdw::result
+    incr j
+  }
+
+  set j 0
+  set aux ""
+
+  while {$j < $Vdw::proce} {
+    vwait Vdw::result
+    set aux [append aux "[tsv::get out 0] "]
+    incr j
+  }
+  array set st $aux
+  if {$scale < 1.0} {
+    array unset id
+    array set id ""
+    set j 0
+    set Vdw::proce [expr $Vdw::proce / 2]
+    set max [expr round([expr double([llength $xl])/ $Vdw::proce])]
+  while {$j < $Vdw::proce} {
+		set id($j) [thread::create]
+		tsv::set in 0 [lrange $xl [expr $max *$j] [expr $max * [expr $j +1]]]
+		tsv::set in 1 [lrange $yl [expr $max *$j] [expr $max * [expr $j +1]]]
+		tsv::set in 2 [lrange $zl [expr $max *$j] [expr $max * [expr $j +1]]]
+		tsv::set in 3 [lrange $rad [expr $max *$j] [expr $max * [expr $j +1]]]
+		tsv::set in 4 $scale
+		tsv::set in 5 $a_xmin
+		tsv::set in 6 $a_ymin
+		tsv::set in 7 $a_zmin
+		tsv::set in 8 $a_xmax
+		tsv::set in 9 $a_ymax
+		tsv::set in 10 $a_zmax
+		tsv::set in 11 $il
+		tsv::set in 12 $path
+		tsv::set in 13 [array get st]
+		 if {$j == [expr $Vdw::proce -1]} {
+			set do 1
+		}
+		tsv::set in 14 $do
+		thread::send -async $id($j) {
+			set xl [tsv::get in 0]
+			set yl [tsv::get in 1]
+			set zl [tsv::get in 2]
+			set rad [tsv::get in 3]
+			set scale [tsv::get in 4]
+			set a_xmin [tsv::get in 5]
+			set a_ymin [tsv::get in 6]
+			set a_zmin [tsv::get in 7]
+			set a_xmax [tsv::get in 8]
+			set a_ymax [tsv::get in 9]
+			set a_zmax [tsv::get in 10]
+			set il [tsv::get in 11]
+			set path [tsv::get in 12]
+			set do [tsv::get in 14]
+			lappend auto_path $path
+			package require MolSpace 1.0
+			namespace import MolSpace::vdwfun
+			namespace import MolSpace::interatom
+			array set  MolSpace::matrix [tsv::get in 13]
+			set fld "Routines/Lib/Vdw_func.tcl"
+			set i 0
+			set st ""
+			while {[lindex $xl $i] != "" && [lindex $yl $i] !="" && [lindex $zl $i] != "" } {
+		 set x [lindex $xl $i]
+		 set y [lindex $yl $i]
+		 set z [lindex $zl $i]
+		 if {$do == 1 && $i == [expr [llength $xl] -1]} {
+			 set do 2
+		 }
+		 if {[format %3.3f [lindex $rad $i] ] > [expr $scale/2.0] } {
+			 set st [append st "[MolSpace::interatom [lindex $rad  $i] $scale $x $y $z $a_xmin $a_ymin $a_zmin $a_xmax $a_ymax $a_zmax $do] "]
+		 }
+		 incr i
+			 }
+			tsv::set out 0 $st
+		} Vdw::result
+		incr j
+  }
+
+    set j 0
+   while {$j < $Vdw::proce} {
+	 vwait Vdw::result
+	 set aux [append aux "[tsv::get out 0] "]
+	 incr j
+    }
+  }
+
+ #####border
+
+
+	 array set st $aux
+	 set aux ""
+		 array unset id
+		 array set id ""
+		 set j 0
+		 set Vdw::proce [expr $Vdw::proce / 2]
+		 while {$j < $Vdw::proce} {
+			 set id($j) [thread::create]
+			 tsv::set in 0 $scale
+			 tsv::set in 1 $a_xmin
+			 tsv::set in 2 $a_ymin
+			 tsv::set in 3 $a_zmin
+			 tsv::set in 4 $a_xmax
+			 tsv::set in 5 $a_ymax
+			 tsv::set in 6 $a_zmax
+			 tsv::set in 7 $path
+			 set ztop [expr round($a_zmax/$Vdw::proce)]
+			 #set h [expr ($j * $ztop)]
+			 #set arr_st ""
+			 #while {$h <= $ztop} {
+				#set arr_st [append arr_st "[array get st *,*,$h ] "]
+				#incr h
+			 #}
+			 tsv::set in 8 $arr_st
+			 tsv::set in 9 $areamin
+			 tsv::set in 10 $areamax
+			 tsv::set in 11 $boxmax
+
+			 tsv::set in 12 [expr round ([expr $j +1] * $ztop)]
+			tsv::set in 13 $j
+			tsv::set in 14 $Vdw::proce
+			tsv::set in 15 $scale
+			 thread::send -async $id($j) {
+				 set scale [tsv::get in 0]
+				 set a_xmin [tsv::get in 1]
+				 set a_ymin [tsv::get in 2]
+				 set a_zmin [tsv::get in 3]
+				 set a_xmax [tsv::get in 4]
+				 set a_ymax [tsv::get in 5]
+				 set a_zmax [tsv::get in 6]
+				 set path [tsv::get in 7]
+				 set areamin [tsv::get in 9]
+				 set areamax [tsv::get in 10]
+				 set boxmax [tsv::get in 11]
+				 set ztop [tsv::get in 12]
+				 set j [tsv::get in 13]
+				 set proce [tsv::get in 14]
+				 set scale [tsv::get in 15]
+				 lappend auto_path $path
+				 package require MolSpace 1.0
+				 namespace import MolSpace::vdwfun
+				 namespace import MolSpace::interatom
+				 #array set  MolSpace::matrix [tsv::get in 8]
+				 set fld "Routines/Lib/Vdw_func.tcl"
+				 set i 0
+				 set st ""
+				 set z 0
+
+				#set st [append st "[MolSpace::mainborder 0 0 0 $a_xmin $a_ymin $a_zmin $a_xmax $a_ymax $ztop $areamin $areamax $boxmax $scale] "]
+
+
+				 if {$j == [expr $proce -1]} {
+					if {$ztop < $a_zmax } {
+						set ztop $a_zmax
+						}
+				 }
+						 set st [append st "[MolSpace::mainborder 0 0 0 $a_xmin $a_ymin $a_zmin $a_xmax $a_ymax $ztop $areamin $areamax $boxmax $scale] "]
+
+
+
+				 tsv::set out 0 $st
+			 } Vdw::result
+			 incr j
+		 }
+
+		 set j 0
+	 set aux ""
+		while {$j < $Vdw::proce} {
+		vwait Vdw::result
+		set aux [append aux "[tsv::get out 0] "]
+		incr j
+	 }
+
+  puts $aux
+}
+
+
+package require Thread
+ Vdw::main [lindex $argv 0] [lindex $argv 1] [lindex $argv 2] [lindex $argv 3] [lindex $argv 4] [lindex $argv 5]\
+[lindex $argv 6] [lindex $argv 7] [lindex $argv 8] [lindex $argv 9] [lindex $argv 10] [lindex $argv 11] [lindex $argv 12]

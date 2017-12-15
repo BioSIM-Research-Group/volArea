@@ -1,0 +1,25 @@
+####vmdStore#### START volArea
+## Version XXversionXX
+# Linux
+if {$::tcl_platform(os) == "Linux"} {
+	if { $::tcl_platform(machine) == "i686" }   {
+        load "$::vmdStorePath/plugins/volArea/Routines/Other/sqlite/32B/tclsqlite-3.6.11.so"
+    } elseif { $::tcl_platform(machine) == "x86_64" } {
+        load "$::vmdStorePath/plugins/volArea/Routines/Other/sqlite/64B/libtclsqlite3.so"
+    }
+}
+# macOS
+if {$::tcl_platform(os) == "Darwin"} {
+	load "$::vmdStorePath/plugins/volArea/Routines/Other/sqlite/MacOs/libsqlite3.6.18.dylib"
+}
+# Windows
+if {[string first "Windows" $::tcl_platform(os)] != -1} {
+	load "$::vmdStorePath/plugins/volArea/Routines/Other/sqlite/Windows/tclsqlite3.dll Sqlite3"
+}
+lappend auto_path "$::vmdStorePath/plugins/volArea/"
+lappend auto_path "$::vmdStorePath/plugins/volArea/Routines/Lib"
+lappend auto_path "$::vmdStorePath/plugins/volArea/Routines/Other"
+lappend auto_path "$::vmdStorePath/plugins/volArea/Routines/Other/graph"
+variable VolAreaPath  "$::vmdStorePath/plugins/volArea"
+vmd_install_extension VolArea "VolArea::VolArea" "PortoBioComp/Surface and Volume Calculator"
+####vmdStore#### END volArea

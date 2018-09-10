@@ -19,7 +19,7 @@ Visual Molecular Dynamics (VMD) 1.9.1 or later
 
 ## Installation
 
-You could install VolArea through [vmdStore](https://github.com/portobiocomp/vmdStore) (Recommended).
+You could install VolArea through [vmdStore](https://github.com/BioSIM-Research-Group/vmdStore) (Recommended).
 
 ## Contacts
 If you have any suggestion of new features, please contact us: nscerque@fc.up.pt

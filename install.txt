@@ -22,4 +22,4 @@ lappend auto_path "$::vmdStorePath/plugins/volArea/Routines/Other"
 lappend auto_path "$::vmdStorePath/plugins/volArea/Routines/Other/graph"
 variable VolAreaPath  "$::vmdStorePath/plugins/volArea"
 vmd_install_extension VolArea "VolArea::VolArea" "VMD Store/Surface and Volume Calculator"
-####vmdStore#### END volArea 
+####vmdStore#### END volArea
